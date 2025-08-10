@@ -1,10 +1,10 @@
 const express = require("express");
 const app = express();
-const port = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001;
 
 app.get("/", (req, res) => res.type('html').send(html));
 
-const server = app.listen(port, () => console.log(`Example app listening on port ${port}!`));
+const server = app.listen(port, () => console.log(`Example app listening on port ${PORT}!`));
 
 server.keepAliveTimeout = 120 * 1000;
 server.headersTimeout = 120 * 1000;
@@ -59,3 +59,34 @@ const html = `
   </body>
 </html>
 `
+// server.js
+
+// Middleware to parse JSON body
+app.use(bodyParser.json());
+
+let scriptBuffer = []; // in-memory buffer array
+
+// POST /scriptRequest
+// Expected JSON body: { script: "BASE64_STRING" }
+app.post('/scriptRequest', (req, res) => {
+  const { script } = req.body;
+
+  if (!script || typeof script !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid "script" field' });
+  }
+
+  scriptBuffer.push(script);
+  res.json({ status: 'ok', message: 'Script executed' });
+});
+
+// GET /scriptBuffer
+// Returns all buffered scripts and clears the list
+app.get('/scriptBuffer', (req, res) => {
+  const scriptsToSend = [...scriptBuffer]; // copy current list
+  scriptBuffer = []; // reset buffer
+  res.json({ scripts: scriptsToSend });
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
