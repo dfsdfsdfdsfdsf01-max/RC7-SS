@@ -1,15 +1,13 @@
+// server.js
 const express = require("express");
 const bodyParser = require('body-parser');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get("/", (req, res) => res.type('html').send(html));
+// Middleware to parse JSON body
+app.use(bodyParser.json());
 
-const server = app.listen(PORT, () => console.log(`Example app listening on port ${PORT}!`));
-
-server.keepAliveTimeout = 120 * 1000;
-server.headersTimeout = 120 * 1000;
-
+// Simple HTML page for root (kept your original HTML)
 const html = `
 <!DOCTYPE html>
 <html>
@@ -59,13 +57,13 @@ const html = `
     </section>
   </body>
 </html>
-`
-// server.js
+`;
 
-// Middleware to parse JSON body
-app.use(bodyParser.json());
+app.get("/", (req, res) => res.type('html').send(html));
 
-let scriptBuffer = []; // in-memory buffer array
+// in-memory buffer and timestamp of last read
+let scriptBuffer = []; // buffered scripts
+let lastBufferRead = null; // ISO string or null
 
 // POST /scriptRequest
 // Expected JSON body: { script: "BASE64_STRING" }
@@ -77,17 +75,41 @@ app.post('/scriptRequest', (req, res) => {
   }
 
   scriptBuffer.push(script);
-  res.json({ status: 'ok', message: 'Script executed' });
+  res.json({ status: 'ok', message: 'Script added to buffer' });
 });
 
-// GET /scriptBuffer
-// Returns all buffered scripts and clears the list
+// GET /scriptBuffer  (original case)
 app.get('/scriptBuffer', (req, res) => {
   const scriptsToSend = [...scriptBuffer]; // copy current list
   scriptBuffer = []; // reset buffer
-  res.json({ scripts: scriptsToSend });
+  lastBufferRead = new Date().toISOString();
+  res.json({ scripts: scriptsToSend, lastBufferRead });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Also provide lowercase alias /scriptbuffer (in case your C# calls lowercase)
+app.get('/scriptbuffer', (req, res) => {
+  const scriptsToSend = [...scriptBuffer]; // copy current list
+  scriptBuffer = []; // reset buffer
+  lastBufferRead = new Date().toISOString();
+  res.json({ scripts: scriptsToSend, lastBufferRead });
 });
+
+// GET /bufferCalled
+// Returns when /scriptBuffer (or alias) was last read.
+// Example response when called previously:
+// { lastBufferRead: "2025-08-20T10:21:34.123Z", epochMs: 1724115694123 }
+app.get('/bufferCalled', (req, res) => {
+  if (!lastBufferRead) {
+    return res.json({ lastBufferRead: null, message: "Buffer has not been read yet" });
+  }
+
+  const epochMs = Date.parse(lastBufferRead);
+  res.json({ lastBufferRead, epochMs });
+});
+
+// start server once
+const server = app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// optional: bump timeouts if needed
+server.keepAliveTimeout = 120 * 1000;
+server.headersTimeout = 120 * 1000;
